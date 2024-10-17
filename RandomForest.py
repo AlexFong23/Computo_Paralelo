@@ -1,13 +1,6 @@
 import itertools
-#from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocess
 import time 
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
-from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import accuracy_score
 
 # método para hacer nivelación de cargas
 def nivelacion_cargas(D, n_p):
