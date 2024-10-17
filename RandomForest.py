@@ -8,7 +8,7 @@ from sklearn.svm import SVC
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import accuracy_score
-
+#GRID SEARCH
 # método para hacer nivelación de cargas
 def nivelacion_cargas(D, n_p):
     s = len(D)%n_p
