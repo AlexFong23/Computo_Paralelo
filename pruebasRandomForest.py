@@ -1,14 +1,9 @@
 import itertools
 import multiprocess
+import pandas as pd
 import time 
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
-from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import accuracy_score
 
-# método para hacer nivelación de cargas
+# Método para hacer nivelación de cargas
 def nivelacion_cargas(D, n_p):
     s = len(D)%n_p
     n_D = D[:s]
@@ -23,7 +18,6 @@ def nivelacion_cargas(D, n_p):
     for i in range(len(n_D)):
         out[i].append(n_D[i])
     return out
-
 
 # Parámetros para Random Forest
 param_grid_rf = {
@@ -44,13 +38,24 @@ def evaluate_set(hyperparameter_set, lock):
     hyperparameter_set: a list with the set of hyperparameters to be evaluated
     """
     from sklearn.ensemble import RandomForestClassifier
-    from sklearn import datasets
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score
     # We load the dataset, here we use 80-20 for training and testing splits
-    iris=datasets.load_iris()
-    X=iris.data
-    y=iris.target
+    from ucimlrepo import fetch_ucirepo
+
+    # Fetch dataset 
+    dataset = fetch_ucirepo(id=544) 
+
+    # Data (as pandas DataFrames) 
+    X = dataset.data.features 
+    y_y = dataset.data.targets 
+
+    # Convertir X y y a arreglos de NumPy
+    y = y_y.to_numpy().ravel()  
+
+    # Esto convierte las columnas categóricas en variables numéricas
+    X = pd.get_dummies(X)  
+
     # se particiona el conjunto en 80-20 para la evaluación
     X_train, X_test, y_train, y_test = train_test_split(X, y,
                                                         stratify=y, 
@@ -75,7 +80,6 @@ if __name__=='__main__':
     for i in range(N_THREADS):
         # Se generan los hilos de procesamiento
         threads.append(multiprocess.Process(target=evaluate_set, args=(splits[i], lock)))
-
 
     start_time = time.perf_counter()
     # Se lanzan a ejecución
