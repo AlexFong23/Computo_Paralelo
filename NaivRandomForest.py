@@ -1,7 +1,7 @@
 import itertools
 import multiprocess
 import pandas as pd
-import time 
+import time
 
 # Método para hacer nivelación de cargas
 def nivelacion_cargas(D, n_p):
@@ -21,8 +21,9 @@ def nivelacion_cargas(D, n_p):
 
 # Parámetros para Random Forest
 param_grid_rf = {
-    'n_estimators': [x for x in range(10,101)],
-    'criterion': ['gini', 'entropy', 'log_loss']
+    'n_estimators': [x for x in range(10, 101)],
+        'criterion': ['gini', 'entropy', 'log_loss'],
+        'min_samples_split': [2, 5, 10] 
 }
 
 # Generar combinaciones para Random Forest
@@ -31,7 +32,7 @@ combinations_rf = [dict(zip(keys_rf, v)) for v in itertools.product(*values_rf)]
 
 
 # Función a paralelizar
-def evaluate_set(hyperparameter_set, lock):
+def evaluate_set(hyperparameter_set, lock, return_dict):
     """
     Evaluate a set of hyperparameters
     Args:
@@ -40,7 +41,6 @@ def evaluate_set(hyperparameter_set, lock):
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score
-    # We load the dataset, here we use 80-20 for training and testing splits
     from ucimlrepo import fetch_ucirepo
 
     # Fetch dataset 
@@ -61,27 +61,39 @@ def evaluate_set(hyperparameter_set, lock):
                                                         stratify=y, 
                                                         test_size=0.20)
     for s in hyperparameter_set:
-        clf=RandomForestClassifier()
-        #print(s)
-        clf.set_params(n_estimators=s['n_estimators'], criterion=s['criterion'])
+        clf = RandomForestClassifier()
+        clf.set_params(n_estimators=s['n_estimators'], 
+                       criterion=s['criterion'],
+                       min_samples_split=s['min_samples_split'])
         clf.fit(X_train, y_train)
-        y_pred=clf.predict(X_test)
-        # Exclusión mutua
+        y_pred = clf.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        # Exclusión mutua para guardar resultados
         lock.acquire()
-        print('Accuracy en el proceso:',accuracy_score(y_test,y_pred))
+        return_dict[str(s)] = accuracy  # Guardar el resultado en el diccionario compartido
         lock.release()
 
-if __name__=='__main__':
-    # Now we will evaluated with more threads
-    threads=[]
-    N_THREADS=1
-    splits=nivelacion_cargas(combinations_rf, N_THREADS)
-    lock=multiprocess.Lock()
+
+if __name__ == '__main__':
+    # Ahora evaluaremos con más hilos
+    threads = []
+    N_THREADS = 11
+    splits = nivelacion_cargas(combinations_rf, N_THREADS)
+    lock = multiprocess.Lock()
+    manager = multiprocess.Manager()
+    return_dict = manager.dict()  # Diccionario para almacenar resultados
+
+    log_file = 'NaivRandomForestResult.txt'  # Nombre del archivo de log
+    with open(log_file, 'w') as f:  # Crear o vaciar el archivo antes de iniciar
+        f.write("Hyperparameter Evaluation Log\n\n")
+
     for i in range(N_THREADS):
         # Se generan los hilos de procesamiento
-        threads.append(multiprocess.Process(target=evaluate_set, args=(splits[i], lock)))
+        threads.append(multiprocess.Process(target=evaluate_set, args=(splits[i], lock, return_dict)))
 
     start_time = time.perf_counter()
+    
     # Se lanzan a ejecución
     for thread in threads:
         thread.start()
@@ -91,4 +103,17 @@ if __name__=='__main__':
         thread.join()
                 
     finish_time = time.perf_counter()
-    print(f"Program finished in {finish_time-start_time} seconds")
+
+    # Encontrar los mejores hiperparámetros
+    best_params = max(return_dict.items(), key=lambda x: x[1])
+
+    # Guardar resultados en el archivo txt
+    with open(log_file, 'a') as f:
+        f.write(f"Program finished in {finish_time - start_time} seconds\n")
+        f.write(f"Best parameters: {best_params[0]}, Accuracy: {best_params[1]}\n\n")
+        f.write("All Results:\n")
+        for k, v in return_dict.items():
+            f.write(f"Params: {k}, Accuracy: {v}\n")
+
+    print(f"Results saved to {log_file}")
+    print(f"Program finished in {finish_time - start_time} seconds")
